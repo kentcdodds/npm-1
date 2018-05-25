@@ -4,6 +4,7 @@ const setLegacyToken = require('./lib/set-legacy-token');
 const getPkg = require('./lib/get-pkg');
 const verifyNpmConfig = require('./lib/verify-config');
 const verifyNpmAuth = require('./lib/verify-auth');
+const addChannelNpm = require('./lib/add-channel');
 const prepareNpm = require('./lib/prepare');
 const publishNpm = require('./lib/publish');
 
@@ -38,6 +39,28 @@ async function verifyConditions(pluginConfig, {options: {publish}, logger}) {
     throw new AggregateError(errors);
   }
   verified = true;
+}
+
+async function addChannel(pluginConfig, {nextRelease: {version}, logger}) {
+  let pkg;
+  const errors = verified ? [] : verifyNpmConfig(pluginConfig);
+
+  setLegacyToken();
+
+  try {
+    // Reload package.json in case a previous external step updated it
+    pkg = await getPkg(pluginConfig.pkgRoot);
+    if (!verified && pluginConfig.npmPublish !== false) {
+      await verifyNpmAuth(pluginConfig, pkg, logger);
+    }
+  } catch (err) {
+    errors.push(...err);
+  }
+  if (errors.length > 0) {
+    throw new AggregateError(errors);
+  }
+
+  return addChannelNpm(pluginConfig, pkg, version, logger);
 }
 
 async function prepare(pluginConfig, {nextRelease: {version}, logger}) {
@@ -85,4 +108,4 @@ async function publish(pluginConfig, {nextRelease: {version}, logger}) {
   return publishNpm(pluginConfig, pkg, version, logger);
 }
 
-module.exports = {verifyConditions, prepare, publish};
+module.exports = {verifyConditions, addChannel, prepare, publish};
